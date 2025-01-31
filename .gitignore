@@ -1,3 +1,9 @@
+# Ignore rmd and tex files for now
+/rmd_ms
+
+# Ignore SVG files
+/svg/*.svg
+
 # History files
 .Rhistory
 .Rapp.history
