@@ -4,6 +4,7 @@
 ## ------------------------------------------------------------------------- ###
 
 ### Libraries ####
+library(plyr)
 library(dplyr)
 library(tidyr)
 library(stringr)
@@ -11,6 +12,7 @@ library(sf)
 library(ggplot2)
 library(patchwork)
 library(ggalluvial)
+library(ggrepel)
 
 ### Data ####
 
@@ -97,6 +99,55 @@ files_all <-
     year >= 2016 & year<= 2020 ~ "2016_2020"
   ), .before = year)
 
+
+## 'files_methods' add what's that paper about
+
+files_methods <- 
+  files_methods %>% 
+  dplyr::mutate(publication = paste(authors, year)) %>% 
+  dplyr::mutate(topic = dplyr::case_when(
+    publication == "Bailey and Bourne 1972" ~ "Protocol",
+    publication == "Dixon 1977" ~ "Detectability",
+    publication == "Frost 1977" ~ "Protocol",
+    publication == "Voisin 1980" ~ "Protocol",
+    publication == "Heinemann 1981" ~ "Tool",
+    publication == "Griffiths 1982" ~ "Ship-followers",
+    publication == "La Cock and Schneider 1982" ~ "Ship-followers",
+    publication == "Powers 1982" ~ "Comparison between methods",
+    publication == "Duffy 1983" ~ "Detectability",
+    publication == "Duffy and Hecht 1984" ~ "Detectability",
+    publication == "Duffy and Schneider 1984" ~ "Comparison between methods",
+    publication == "Tasker et al 1984" ~ "Protocol",
+    publication == "Briggs et al 1985" ~ "Comparison between methods",
+    publication == "Haney 1985" ~ "Comentary/discussion",
+    publication == "Tasker et al 1985" ~ "Comentary/discussion",
+    publication == "Gaston et al 1987" ~ "Comentary/discussion",
+    publication == "Erikstad et al 1988" ~ "Ship-followers",
+    publication == "Ryan and Cooper 1989" ~ "Detectability",
+    publication == "BIOMASS working party on bird ecology 1992" ~ "Protocol",
+    publication == "Spear et al 1992" ~ "Protocol",
+    publication == "van Franeker 1994" ~ "Comparison between methods",
+    publication == "van der Meer and Camphuysen 1996" ~ "Detectability",
+    publication == "Becker et al 1997" ~ "Comparison between methods",
+    publication == "Garthe and Huppop 1999" ~ "Detectability",
+    publication == "Hyrenbach 2001" ~ "Ship-followers",
+    publication == "Mack et al 2002" ~ "Detectability",
+    publication == "Camphuysen and Garthe 2004" ~ "Protocol",
+    publication == "Spear et al 2004" ~ "Protocol",
+    publication == "Borberg et al 2005" ~ "Detectability",
+    publication == "Henkel et al 2007" ~ "Comparison between methods",
+    publication == "Hyrenbach et al 2007" ~ "Detectability",
+    publication == "Barbraud and Thiebot 2009" ~ "Detectability",
+    publication == "Ronconi and Burger 2009" ~ "Comparison between methods",
+    publication == "Southwell and Low 2009" ~ "Detectability",
+    publication == "Lukacs et al 2010" ~ "Comparison between methods",
+    publication == "Bolduc and Desbiens 2011" ~ "Tool",
+    publication == "Robertson et al 2012" ~ "Tool",
+    publication == "Whitworth and Carter 2014" ~ "Protocol",
+    publication == "Keen et al 2016" ~ "Tool",
+    publication == "Bolduc and Fifield 2017" ~ "Comparison between methods"
+    ))
+
 ## --------------------------------------------------------- ##
 ## --------------------------------------------------------- ##
 ## Random selection ---------------------------------------- ##
@@ -120,6 +171,13 @@ data_random_pretty <-
     preferential_habitat == "coastal" ~ "Coastal",
     preferential_habitat == "oceanic" ~ "Oceanic"
   )) %>% 
+    dplyr::mutate(method = case_when(
+    method == "log_book" ~ "Log book",
+    method == "strip_transect" ~ "Strip transect",
+    method == "distance_sampling" ~ "Distance sampling",
+    method == "max_number" ~ "Maximum number",
+    method == "count" ~ "Count"
+  )) %>% 
   dplyr::mutate(sampling_protocol = case_when(
     sampling_protocol == "other" ~ "Other",
     sampling_protocol == "biomass" ~ "BIOMASS",
@@ -129,12 +187,6 @@ data_random_pretty <-
     sampling_protocol == "tasker, gould_forsell" ~ "Tasker et al. 1984",
     sampling_protocol == "gould_forsell" ~ "Gould & Forsell 1989"
   )) %>% 
-  dplyr::mutate(method = case_when(
-    method == "log_book" ~ "Log book",
-    method == "strip_transect" ~ "Strip transect",
-    method == "distance_sampling" ~ "Distance sampling",
-    method == "max_numer" ~ "Maximum number"
-  )) %>% 
   dplyr::mutate(type_of_count = case_when(
     type_of_count == "not specified" ~ "Not specified",
     type_of_count == "continuous" ~ "Countinuos",
@@ -142,12 +194,14 @@ data_random_pretty <-
     type_of_count == "snapshot" ~ "Snapshot",
     type_of_count == "radial" ~ "Radial"
   )) %>% 
+  tidyr::separate_longer_delim(attraction_bias, delim = ", ") %>% 
   dplyr::mutate(attraction_bias = case_when(
-    attraction_bias == "none" ~ "None",
+    attraction_bias == "none_assumed" ~ "None (assumed)",
     attraction_bias == "research_fishing" ~ "Research fishing",
     attraction_bias == "commercial_fishing" ~ "Commercial fishing", 
-    attraction_bias == "research_fishing, none" ~ "Research fishing",
-    attraction_bias == "commercial_fishing, none" ~ "Commercial fishing", 
+    attraction_bias == "acknowledged_corrected" ~ "Acknowledged and corrected",
+    # attraction_bias == "research_fishing, none" ~ "Research fishing",
+    # attraction_bias == "commercial_fishing, none" ~ "Commercial fishing", 
     attraction_bias == "chumming" ~ "Chumming"
   )) %>% 
   tidyr::separate_longer_delim(study_purpose, delim = ", ") %>% 
@@ -170,7 +224,76 @@ data_random_pretty <-
     stats_technique == "spatial_stats" ~ "Spatial statistics"
     ))
 
-### Summaries --- playing around a bit... ####
+### Summaries --- ####
+
+## (a) Journals ####
+
+# sort(unique(files_all$journal))
+
+## Fix one entry
+files_all[files_all$journal == "Dansk Orn Foren Tidsskr 66 (108-112)", ]$journal <- "Dansk Orn Foren Tidsskr"
+## Just for aesthetics, spell MEPS out
+files_all[files_all$journal == "MEPS", ]$journal <- "Mar Ecol Prog Ser"
+
+# length(unique(files_all$journal))
+# >> 186 different journals...
+
+files_all %>% 
+  dplyr::group_by(journal) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  head(5)
+
+# 1 Mar Ecol Prog Ser    85
+# 2 Mar Ornithol         56
+# 3 Deep-Sea Res II      35
+# 4 Polar Biol           35
+# 5 Condor               28
+# >> Totalling 238 articles (  (238/806)*100 = 29.5% from total  )
+
+## (b) Timeline: survey methods et al ####
+
+# Based on: https://www.r4photobiology.info/galleries/plot-timeline.html
+
+df_timeline <- 
+  files_methods %>% 
+  dplyr::mutate(event = "method") %>% 
+  dplyr::mutate(year_as_date = as.Date(as.character(year), 
+                                       format = "%Y"))
+
+# Simplify the BIOMASS name for the sake of the plot
+df_timeline[df_timeline$publication=="BIOMASS working party on bird ecology 1992",]$publication <- "BIOMASS 1992"
+
+# Remove Spear et al 1992 'comment', as it is only intended to acknowledge that 'Gaston & Smith 1984'
+# proposed a similar method to correct seabird counts from aerial surveys based on the same ideas, before them
+
+
+timeline_methods <- 
+  ggplot(df_timeline, 
+       aes(x = year_as_date, y = event, label = publication)) + 
+  geom_line(color = "black") +
+  geom_point() +
+  ggrepel::geom_label_repel(aes(color = topic),
+                            size = 3, 
+                           direction = "y",
+                           point.padding = 0.5,
+                           box.padding = 1,
+                           force = 2,
+                           max.overlaps = 40,
+                           seed = 123) +
+  scale_color_brewer(palette = "Dark2", name = "Topic") + 
+  scale_x_date(name = "", date_breaks = "5 years", date_labels = "%Y") +
+  scale_y_discrete(name = "") +
+  theme_minimal() + 
+  theme(axis.text.y = element_blank(),
+        axis.text.x = element_text(size = 10, angle = 45, vjust = 1, hjust = 1),
+        legend.position = "bottom")
+
+# ggsave(timeline_methods,
+#        filename = "./results/timeline-methods.pdf",
+#        height = 19, width = 22, units = "cm", dpi = 200)
+
+rm(df_timeline, timeline_methods)
 
 ## (i) Temporal trends ####
 
@@ -178,10 +301,42 @@ data_random_pretty <-
 # a.1) Total
 # a.2) Random sample, per hemisphere
 
+pubs_per_5yr <-
+  files_all %>% 
+  dplyr::group_by(five_yr_bin, year) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::ungroup(.) %>% 
+  dplyr::group_by(five_yr_bin) %>% 
+  dplyr::summarise(mean = mean(n),
+                   sd = sd(n)) %>% 
+  dplyr::ungroup(.) %>% 
+  dplyr::mutate(mean_five_yr_bin = dplyr::case_when(
+    five_yr_bin == "1971_1975" ~ 1973,
+    five_yr_bin == "1976_1980" ~ 1978,
+    five_yr_bin == "1981_1985" ~ 1983,
+    five_yr_bin == "1986_1990" ~ 1988,
+    five_yr_bin == "1991_1995" ~ 1993,
+    five_yr_bin == "1996_2000" ~ 1998,
+    five_yr_bin == "2001_2005" ~ 2003,
+    five_yr_bin == "2006_2010" ~ 2008,
+    five_yr_bin == "2011_2015" ~ 2013,
+    five_yr_bin == "2016_2020" ~ 2018
+  ), .before = five_yr_bin)
+
+
 pubs_per_year_total <-
   ggplot(data = files_all,
          aes(x = year)) +
-  geom_bar(fill = "steelblue") + 
+  geom_bar(fill = "grey60") + 
+  geom_point(data = pubs_per_5yr,
+             aes(y = mean, x = mean_five_yr_bin),
+             size = 1.8, color = "black") + 
+  geom_errorbar(data = pubs_per_5yr,
+                aes(ymin = mean-sd, ymax = mean+sd, x = mean_five_yr_bin),
+             color = "black", width = 0.7) + 
+  geom_line(data = pubs_per_5yr,
+            aes(y = mean, x = mean_five_yr_bin),
+            color = "black", linewidth = 0.8, linetype = "dashed") + 
   xlab("") + ylab("Number of publications") + 
   theme_bw() + 
   theme(axis.title = element_text(size = 10),
@@ -209,7 +364,7 @@ histogram_pubs_per_year <-
 #        filename = "./results/histogram-number-pubs-per-year.pdf",
 #        height = 12, width = 12, units = "cm", dpi = 200)
 
-rm(histogram_pubs_per_year, pubs_per_year_total, pubs_per_year_sample)
+rm(pubs_per_5yr, histogram_pubs_per_year, pubs_per_year_total, pubs_per_year_sample)
 
 # b) Heatmap: Month x Year, by preferential hemisphere
 # --- Can I make this happen??? Probably worth trying for the publication
@@ -230,7 +385,7 @@ n_grids_per_study <-
 histogram_grids_per_study <-
   ggplot(data = n_grids_per_study,
          aes(x = n_grids)) +
-  geom_bar(fill = "steelblue") + 
+  geom_bar(fill = "grey60") + 
   scale_x_continuous(breaks = c(0:28), 
                      labels = c("", as.character(seq(1:7)), "", "9", rep("", 2), "12", rep("", 5), 
                                 "18", "", "20", rep("", 2), "23", rep("", 4), "28")) + 
@@ -466,9 +621,9 @@ barplot_method <-
   ggplot(method_per_5yr, 
          aes(x = five_yr_bin, y = n_method, fill = method)) +
   geom_bar(position = "fill", stat = "identity") + 
-  scale_fill_manual(values = c("#3283FE", "#FEAF16", "#B00068"), # palette.colors(palette = "Polychrome 36")[6:8]
+  scale_fill_manual(values = c("#5A5156", "#3283FE", "#FEAF16", "#DEA0FD", "#B00068"), # palette.colors(palette = "Polychrome 36")[c(1, 6:8, 12)]
                     na.value = "grey", name = "") +
-  scale_y_continuous(labels = c("0%", "25%", "50%", "75%", "100%")) + 
+  scale_y_continuous(labels = c("0%", "25%", "50%", "75%", "100%")) +
   xlab("") + ylab("") + 
   theme_bw() + 
   theme(axis.text = element_text(size = 8), 
@@ -514,6 +669,10 @@ typeofcount_per_5yr <-
                                    replacement = "-", x = five_yr_bin)) %>% 
   dplyr::ungroup()
 
+typeofcount_per_5yr$type_of_count <- factor(typeofcount_per_5yr$type_of_count,
+                                            levels = c("Not specified", "Countinuos", "Snapshot",
+                                                       "Continuous and Snapshot", "Radial", NA))
+
 barplot_typeofcount <-
   ggplot(typeofcount_per_5yr, 
          aes(x = five_yr_bin, y = n_typeofcount, fill = type_of_count)) +
@@ -549,15 +708,17 @@ rm(method_per_5yr, barplot_method,
 data_random_pretty %>% 
   dplyr::distinct(id, attraction_bias, .keep_all = TRUE) %>% 
   dplyr::group_by(attraction_bias) %>% 
-  dplyr::summarise(n = n())
+  dplyr::summarise(n = n()) %>% 
+  dplyr::arrange(desc(n))
 
-# Chumming               2
-# Commercial fishing     8
-# None                  73
-# Research fishing      17
-# NA                     2
+ # None (assumed)                71
+ # Research fishing              20
+ # Commercial fishing             8
+ # Acknowledged and corrected     2
+ # Chumming                       2
+ # NA                             1
 
-# e) number of 'NA' in cols "dist_boat", "ship_speed", "height_above_water", "n_sides", "n_observers"
+# e) number of 'NA'/top sampling settings in cols "dist_boat", "ship_speed", "height_above_water", "n_sides", "n_observers"
 
 View(data_random_pretty %>% 
        dplyr::distinct(id, dist_boat, .keep_all = TRUE) %>% 
@@ -565,13 +726,13 @@ View(data_random_pretty %>%
        dplyr::summarise(n = n()) %>% 
        dplyr::arrange(desc(n)))
 
-## Top 6
-# 300m             42
-# not specified    20
-# unlimited         8
-# 500m              7
-# 100m              5
-# 150m              4
+## Top 5
+# 300m          41
+# not specified 21
+# unlimited     7
+# 100m          5
+# 500m          5
+## Note: 4 studies used 'distance intervals'
 
 View(data_random_pretty %>% 
        dplyr::distinct(id, ship_speed, .keep_all = TRUE) %>% 
@@ -615,14 +776,26 @@ data_random_pretty %>%
 
 # n_observers       n
 # 1                58
-# not specified    22
-# 2                12
+# not specified    21
+# 2                13
 # 2-3               4
 # NA                3
 # 1-2               2
 # 1 or 2            1
 
-# f) number (%) studies that analysed birds "on_water_only"
+# f) "ship_followers"
+
+data_random_pretty %>% 
+  dplyr::distinct(id, .keep_all = TRUE) %>% 
+  dplyr::group_by(ship_followers) %>% 
+  dplyr::summarise(n = n()) %>% 
+  dplyr::arrange(desc(n))
+
+# "not specified"                 61
+# "pooled"                        13
+# "counted once then ignored"      9
+
+# g) number (%) studies that analysed birds "on_water_only"
 
 data_random_pretty %>% 
   dplyr::distinct(id, on_water_only, .keep_all = TRUE) %>% 
@@ -637,3 +810,4 @@ data_random_pretty %>%
 # NA                   3
 # ""                   1
 # "yes_foraging"       1
+
