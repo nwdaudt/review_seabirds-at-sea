@@ -164,8 +164,8 @@ data_random_pretty <-
   data_random %>% 
   dplyr::mutate(preferential_hemisphere = case_when(
     preferential_hemisphere == "both" ~ "Both",
-    preferential_hemisphere == "north" ~ "North hemisphere",
-    preferential_hemisphere == "south" ~ "South hemisphere"
+    preferential_hemisphere == "north" ~ "Northern Hemisphere",
+    preferential_hemisphere == "south" ~ "Southern Hemisphere"
     )) %>% 
   dplyr::mutate(preferential_habitat = case_when(
     preferential_habitat == "coastal" ~ "Coastal",
